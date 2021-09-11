@@ -78,14 +78,34 @@ $(RELDIR)/%.o: %.cpp
 #
 test: $(TESTEXE)
 $(TESTEXE): $(TESTOBJS)
-	$(CXX) $(CXXFLAGS) $(TESTCXXFLAGS) -o $(TESTEXE) $^	
+	$(CXX) $(CXXFLAGS) $(TESTCXXFLAGS) -o $(TESTEXE) $^ -Wall -fprofile-arcs -ftest-coverage
 
 $(TESTDIR)/%.o: %.cpp
 	@mkdir -p $(@D)
-	$(CXX) -c $(CXXFLAGS) $(TESTCXXFLAGS) $(TEST_INCLUDE) $(INCLUDE) -o $@ $<	
+	$(CXX) -c $(CXXFLAGS) $(TESTCXXFLAGS) --coverage $(TEST_INCLUDE) $(INCLUDE) -o $@ $<
 
 tests run: $(TESTEXE)
 	./$(TESTEXE)
+
+coverage: checks
+	lcov --directory $(TESTDIR) --capture --output-file $(TESTDIR)/covdata
+	genhtml --legend --title coverage -o $(TESTDIR)/coverage_dir $(TESTDIR)/covdata
+
+checks: prep
+	${MAKE} parallel-checks
+
+prep:
+	rm -r $(TESTDIR)
+
+parallel-checks: $(addsuffix -runq,${TESTEXE})
+
+%-runq: %
+	@echo "  RUN     " $<; rm -f $<.success $<.fail; \
+	if ./$<  >$<.out 2>&1 || ./$<  >$<.out 2>&1; then \
+	    mv $<.out $<.success ; \
+	else \
+	    mv $<.out $<.fail ; cat $<.fail; exit 1; \
+	fi
 #
 # Other rules
 #
